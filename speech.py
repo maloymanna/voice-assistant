@@ -1,80 +1,71 @@
+"""Thin wrapper around Vosk. Exposes two modes:
+   - one_shot(): listen until a command is spoken (or timeout)
+   - stream(): yield transcripts continuously (used by dictation mode)
 """
-speech.py
-
-Records audio from the microphone and transcribes it
-using Faster-Whisper.
-"""
-
-import os
-
+import json, queue, time
 import sounddevice as sd
-import soundfile as sf
-
-from faster_whisper import WhisperModel
+from vosk import Model, KaldiRecognizer, SetLogLevel
 
 import config
 
+SetLogLevel(-1)  # quiet
 
-class SpeechRecognizer:
-
+class Recognizer:
     def __init__(self):
+        if not __import__("os").path.isdir(config.MODEL_PATH):
+            raise RuntimeError(
+                f"Model missing at {config.MODEL_PATH}. Run setup_models.py first."
+            )
+        self.model = Model(config.MODEL_PATH)
+        self._make_rec()
 
-        print("Loading Whisper model...")
+    def _make_rec(self):
+        self.rec = KaldiRecognizer(self.model, config.SAMPLE_RATE)
+        self.q = queue.Queue()
 
-        self.model = WhisperModel(
-            config.WHISPER_MODEL,
-            device=config.WHISPER_DEVICE,
-            compute_type=config.WHISPER_COMPUTE_TYPE,
-        )
+    def _cb(self, indata, frames, time_info, status):
+        if status:
+            pass  # ignore xruns etc.
+        self.q.put(bytes(indata))
 
-        print("Whisper loaded.\n")
-
-    def record(self):
-
-        print(f"Listening for {config.RECORD_SECONDS} seconds...")
-
-        audio = sd.rec(
-            int(config.RECORD_SECONDS * config.SAMPLE_RATE),
+    def one_shot(self, timeout=None):
+        """Return a single transcript string, or '' on timeout / silence."""
+        timeout = timeout or config.LISTEN_TIMEOUT_SEC
+        self._make_rec()
+        final_text = ""
+        deadline = time.time() + timeout
+        with sd.RawInputStream(
             samplerate=config.SAMPLE_RATE,
-            channels=config.CHANNELS,
-            dtype="float32",
-        )
+            blocksize=config.BLOCK_SIZE,
+            dtype="int16",
+            channels=1,
+            callback=self._cb,
+        ):
+            while time.time() < deadline:
+                data = self.q.get()
+                if self.rec.AcceptWaveform(data):
+                    text = json.loads(self.rec.Result()).get("text", "").strip()
+                    if text:
+                        final_text = text
+                        break
+            # grab any trailing partial
+            if not final_text:
+                final_text = json.loads(self.rec.FinalResult()).get("text", "").strip()
+        return final_text
 
-        sd.wait()
-
-        sf.write(
-            config.TEMP_WAV,
-            audio,
-            config.SAMPLE_RATE,
-        )
-
-        return config.TEMP_WAV
-
-    def transcribe(self, wav_file):
-
-        segments, info = self.model.transcribe(
-            wav_file,
-            beam_size=5,
-        )
-
-        text = ""
-
-        for segment in segments:
-            text += segment.text
-
-        text = text.strip()
-
-        return text
-
-    def listen(self):
-
-        wav = self.record()
-
-        text = self.transcribe(wav)
-
-        try:
-            os.remove(wav)
-        except Exception:
-            pass
-
-        return text
+    def stream(self):
+        """Yield transcript strings as the user speaks, indefinitely."""
+        self._make_rec()
+        with sd.RawInputStream(
+            samplerate=config.SAMPLE_RATE,
+            blocksize=config.BLOCK_SIZE,
+            dtype="int16",
+            channels=1,
+            callback=self._cb,
+        ):
+            while True:
+                data = self.q.get()
+                if self.rec.AcceptWaveform(data):
+                    text = json.loads(self.rec.Result()).get("text", "").strip()
+                    if text:
+                        yield text

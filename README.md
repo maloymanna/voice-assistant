@@ -1,104 +1,51 @@
-# Local Windows Voice Assistant (Offline)
+# voice-assistant
 
-A lightweight offline voice-controlled assistant for Windows 11.
+Lightweight, fully offline voice assistant for Windows 11.
 
-It allows you to control your PC using speech:
-- Open/close applications
-- Navigate browser (Edge)
-- Control Excel / PowerPoint / Outlook
-- Type dictated text
-- Execute keyboard shortcuts
-- Scroll, click, and navigate UI
-
----
-
-## Features
-
-### Applications
-- Open Edge, Excel, Outlook, PowerPoint, Notepad++
-- Close running applications
-- Open common folders (Downloads, Documents, Desktop)
-
-### Browser
-- Open websites
-- Google search
-- New tab / close tab / refresh
-- Back / forward navigation
-
-### System control
-- Copy / paste / undo / redo
-- Save / save as
-- Scroll up/down
-- Page navigation
-- Mouse clicks
-
-### Dictation
-- "Type ..." to dictate text into active window
-
----
-
-## Installation
-
-### 1. Install Python dependencies
+## Install
 
 ```bash
-pip install -r requirements.txt
+git clone <this-repo> voice-assistant
+cd voice-assistant
+python -m pip install --user -r requirements.txt
+python setup_models.py        # downloads ~50 MB model from GitHub
 ```
 
-### 2. Run the assistant
+## Run
 
-```python main.py```
-
-## Usage
-Press ENTER and speak a command.
-
-### Examples
-```text
-Open Edge
-Open Excel
-Open Outlook
-
-Go to google dot com
-Search for quarterly earnings
-
-Type Hello everyone
-
-Save
-Copy
-Paste
-Undo
-
-Scroll down
-Scroll up
-
-New tab
-Close tab
-
-Refresh
+```bash
+python main.py
 ```
 
-## Notes
+Press **F9** to speak a command. Say `exit` to quit.
 
-- Uses Faster-Whisper for offline speech recognition
-- No cloud APIs required
-- Runs fully locally on CPU
-- Designed for Windows 11
+## Commands
 
-## Architecture
-```text
-Speech (Whisper)
-    ↓
-Command Parser
-    ↓
-Windows Actions
-    ↓
-Keyboard / Mouse / Apps / Browser
-```
+| You say                                  | What happens                     |
+|------------------------------------------|----------------------------------|
+| `open edge` / `open excel` / `open outlook` | Launch app                     |
+| `close notepad`                          | Kill process                     |
+| `back` / `forward` / `refresh`           | Edge navigation                  |
+| `new tab` / `close tab`                  | Edge tabs                        |
+| `go to https://example.com`              | Navigate Edge                    |
+| `search for python docs`                 | Bing search                      |
+| `press control s` / `press alt f4`       | Any shortcut in `shortcuts.json` |
+| `scroll up 5` / `scroll down`            | Mouse wheel                      |
+| `click` / `right click` / `double click` | Mouse buttons                    |
+| `type Hello world`                       | Paste typed text                 |
+| `dictation`                              | Free dictation until `stop dictation` |
+| `exit`                                   | Quit                             |
 
-## Future upgrades
+## Customising
 
-- Wake word activation
-- Continuous dictation mode
-- Local LLM fallback (Qwen 3 4B)
-- UI automation (pywinauto enhancements)
-- TTS feedback (Piper)
+- Edit **`shortcuts.json`** to add spoken names for any keystroke combo.
+- Edit **`commands.py`** `_PATTERNS` list to add new phrases.
+- Edit **`apps.py`** `_ALIASES` to add spoken names for your installed apps.
+- Edit **`config.py`** to change model path, hotkey, timeouts.
+
+## Architecture notes
+
+- **Speech**: Vosk small English model (offline, ~50 MB).
+- **Parsing**: regex-based, deterministic, easy to extend.
+- **Actions**: pyautogui + pywin32 COM for Office.
+- **Hotkey**: pynput global listener (no admin required).

@@ -1,99 +1,23 @@
-"""
-Configuration for Local Voice Assistant
-"""
+"""Central configuration. Tweak to taste."""
+import os
 
-from pathlib import Path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# -------------------------------
-# Speech Recognition
-# -------------------------------
-
-WHISPER_MODEL = "small"
-
-WHISPER_DEVICE = "cpu"
-
-WHISPER_COMPUTE_TYPE = "int8"
-
+# Speech
+MODEL_PATH = os.path.join(BASE_DIR, "models", "vosk-model-small-en-us-0.15")
 SAMPLE_RATE = 16000
+BLOCK_SIZE = 8000
+LISTEN_TIMEOUT_SEC = 6          # max seconds to wait for one command
+SILENCE_THRESHOLD = 300         # rough RMS cutoff for "is user talking"
 
-CHANNELS = 1
+# Hotkey (pynput key name). Press this to start listening.
+PUSH_TO_TALK_KEY = "f9"
 
-RECORD_SECONDS = 5
+# Dictation
+DICTATION_STOP_PHRASES = {"stop dictation", "stop typing", "end dictation"}
 
-TEMP_WAV = "speech.wav"
-
-# -------------------------------
 # Browser
-# -------------------------------
+DEFAULT_BROWSER = "msedge"
 
-DEFAULT_SEARCH_ENGINE = "https://www.google.com/search?q={}"
-
-# -------------------------------
-# Applications
-# -------------------------------
-
-APPLICATIONS = {
-
-    "edge": "msedge.exe",
-
-    "excel": "excel.exe",
-
-    "powerpoint": "powerpnt.exe",
-
-    "outlook": "outlook.exe",
-
-    "notepad": "notepad.exe",
-
-    "notepad++": "notepad++.exe",
-
-    "calculator": "calc.exe",
-
-    "paint": "mspaint.exe",
-
-    "explorer": "explorer.exe"
-
-}
-
-# -------------------------------
-# Common Windows folders
-# -------------------------------
-
-FOLDERS = {
-
-    "downloads": str(Path.home() / "Downloads"),
-
-    "documents": str(Path.home() / "Documents"),
-
-    "desktop": str(Path.home() / "Desktop"),
-
-    "pictures": str(Path.home() / "Pictures")
-
-}
-
-# -------------------------------
-# Command timing
-# -------------------------------
-
-KEY_DELAY = 0.05
-
-TYPE_DELAY = 0.01
-
-SCROLL_AMOUNT = 600
-
-# -------------------------------
-# Logging
-# -------------------------------
-
-DEBUG = True
-
-# -------------------------------
-# Greeting
-# -------------------------------
-
-WELCOME = """
-------------------------------------
-Local Windows Voice Assistant
-Offline Version
-Type 'quit' to exit
-------------------------------------
-"""
+# Shortcuts map
+SHORTCUTS_FILE = os.path.join(BASE_DIR, "shortcuts.json")

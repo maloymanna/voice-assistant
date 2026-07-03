@@ -1,109 +1,20 @@
-"""
-keyboard_actions.py
+"""Translate combo strings like 'ctrl+shift+s' into pyautogui hotkey calls."""
+import pyautogui
 
-Central mapping for keyboard shortcuts.
-"""
+pyautogui.FAILSAFE = True        # move mouse to corner to abort
+pyautogui.PAUSE = 0.05
 
-import keyboard
+_MODS = {"ctrl", "control", "alt", "shift", "win", "windows", "cmd", "command"}
 
-SHORTCUTS = {
+def _normalize(key: str) -> str:
+    k = key.strip().lower()
+    return {"control": "ctrl", "windows": "win", "cmd": "win", "command": "win"}.get(k, k)
 
-    # File
-    "save": "ctrl+s",
-    "save file": "ctrl+s",
-    "save as": "ctrl+shift+s",
-    "new file": "ctrl+n",
-    "open file": "ctrl+o",
-    "print": "ctrl+p",
-    "close file": "ctrl+w",
-
-    # Editing
-    "copy": "ctrl+c",
-    "paste": "ctrl+v",
-    "cut": "ctrl+x",
-    "undo": "ctrl+z",
-    "redo": "ctrl+y",
-    "select all": "ctrl+a",
-
-    "find": "ctrl+f",
-    "replace": "ctrl+h",
-
-    # Browser
-    "refresh": "f5",
-    "reload": "f5",
-
-    "new tab": "ctrl+t",
-    "close tab": "ctrl+w",
-    "reopen tab": "ctrl+shift+t",
-
-    "next tab": "ctrl+tab",
-    "previous tab": "ctrl+shift+tab",
-
-    "address bar": "ctrl+l",
-
-    "back": "alt+left",
-    "forward": "alt+right",
-
-    # Windows
-
-    "task manager": "ctrl+shift+esc",
-
-    "desktop": "win+d",
-
-    "run": "win+r",
-
-    "lock computer": "win+l",
-
-    "file explorer": "win+e",
-
-    # Outlook
-
-    "new email": "ctrl+n",
-
-    "reply": "ctrl+r",
-
-    "reply all": "ctrl+shift+r",
-
-    "forward email": "ctrl+f",
-
-    "send email": "alt+s",
-
-    # PowerPoint
-
-    "new slide": "ctrl+m",
-
-    "start slideshow": "f5",
-
-    "next slide": "right",
-
-    "previous slide": "left",
-
-    # Excel
-
-    "insert row": "ctrl+shift+=",
-
-    "insert column": "ctrl+space",
-
-    "format cells": "ctrl+1",
-
-    "filter": "ctrl+shift+l",
-
-    "edit cell": "f2"
-
-}
-
-
-def perform_shortcut(command: str):
-
-    command = command.lower().strip()
-
-    combo = SHORTCUTS.get(command)
-
-    if combo is None:
-        return False
-
-    keyboard.press_and_release(combo)
-
-    print(f"Shortcut: {combo}")
-
-    return True
+def press_combo(combo: str):
+    """combo is e.g. 'ctrl+shift+s' or a single key like 'enter'."""
+    parts = [_normalize(p) for p in combo.split("+")]
+    mods = [p for p in parts if p in _MODS]
+    keys = [p for p in parts if p not in _MODS]
+    if not keys:
+        return
+    pyautogui.hotkey(*mods, *keys)

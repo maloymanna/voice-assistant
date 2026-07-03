@@ -1,117 +1,47 @@
-"""
-apps.py
+"""Launch and terminate apps. Uses a small alias table plus PowerShell fallback."""
+import subprocess, os
 
-Application launcher / closer.
-"""
+# Common spoken-name -> executable / shell alias
+_ALIASES = {
+    "edge":          "msedge",
+    "microsoft edge":"msedge",
+    "browser":       "msedge",
+    "excel":         "excel",
+    "word":          "winword",
+    "powerpoint":    "powerpnt",
+    "outlook":       "outlook",
+    "notepad":       "notepad",
+    "calculator":    "calc",
+    "calc":          "calc",
+    "file explorer": "explorer",
+    "explorer":      "explorer",
+    "task manager":  "taskmgr",
+    "control panel": "control",
+    "cmd":           "cmd",
+    "command prompt":"cmd",
+    "powershell":    "pwsh",
+    "git bash":      r"C:\Program Files\Git\bin\bash.exe",
+    "settings":      "ms-settings:",
+}
 
-import os
-import subprocess
-
-import psutil
-
-import config
-
-
-def normalize(name: str) -> str:
-    """
-    Normalize spoken application names.
-    """
-
-    name = name.lower().strip()
-
-    aliases = {
-        "microsoft edge": "edge",
-        "edge browser": "edge",
-        "edge": "edge",
-
-        "excel": "excel",
-        "microsoft excel": "excel",
-
-        "powerpoint": "powerpoint",
-        "power point": "powerpoint",
-
-        "outlook": "outlook",
-
-        "notepad": "notepad",
-
-        "notepad plus plus": "notepad++",
-        "notepad plus": "notepad++",
-        "notepad++": "notepad++",
-
-        "calculator": "calculator",
-
-        "paint": "paint",
-
-        "file explorer": "explorer",
-        "explorer": "explorer",
-    }
-
-    return aliases.get(name, name)
-
-
-def open_application(name: str):
-
-    name = normalize(name)
-
-    exe = config.APPLICATIONS.get(name)
-
-    if exe is None:
-        print(f"Unknown application: {name}")
-        return False
-
+def open_app(name: str):
+    key = name.strip().lower()
+    target = _ALIASES.get(key, key)
     try:
-        subprocess.Popen(exe)
-        print(f"Opened {name}")
-        return True
+        os.startfile(target)
+    except Exception:
+        # Fall back to PowerShell Start-Process (handles UWP / ms- URIs)
+        subprocess.Popen(
+            ["pwsh", "-NoProfile", "-Command", f"Start-Process '{target}'"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
 
-    except Exception as e:
-        print(e)
-        return False
-
-
-def close_application(name: str):
-
-    name = normalize(name)
-
-    exe = config.APPLICATIONS.get(name)
-
-    if exe is None:
-        return False
-
-    exe = exe.lower()
-
-    for proc in psutil.process_iter(["pid", "name"]):
-
-        try:
-
-            pname = proc.info["name"]
-
-            if pname is None:
-                continue
-
-            if pname.lower() == exe:
-
-                proc.terminate()
-
-                print(f"Closed {name}")
-
-                return True
-
-        except Exception:
-            pass
-
-    return False
-
-
-def open_folder(name: str):
-
-    folder = config.FOLDERS.get(name.lower())
-
-    if folder is None:
-        return False
-
-    os.startfile(folder)
-
-    print(f"Opened {folder}")
-
-    return True
+def close_app(name: str):
+    key = name.strip().lower()
+    exe = _ALIASES.get(key, key)
+    if not exe.endswith(".exe"):
+        exe += ".exe"
+    subprocess.run(
+        ["taskkill", "/IM", exe, "/F"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )

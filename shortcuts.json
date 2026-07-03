@@ -1,49 +1,35 @@
 {
-  "save": "ctrl+s",
-  "save file": "ctrl+s",
-  "save as": "ctrl+shift+s",
-
-  "copy": "ctrl+c",
-  "paste": "ctrl+v",
-  "cut": "ctrl+x",
-
-  "undo": "ctrl+z",
-  "redo": "ctrl+y",
-
-  "select all": "ctrl+a",
-
-  "find": "ctrl+f",
-  "replace": "ctrl+h",
-
-  "refresh": "f5",
-
-  "new tab": "ctrl+t",
-  "close tab": "ctrl+w",
-  "reopen tab": "ctrl+shift+t",
-
-  "next tab": "ctrl+tab",
-  "previous tab": "ctrl+shift+tab",
-
-  "address bar": "ctrl+l",
-
-  "back": "alt+left",
-  "forward": "alt+right",
-
-  "task manager": "ctrl+shift+esc",
-
-  "desktop": "win+d",
-  "run": "win+r",
-  "lock": "win+l",
-  "file explorer": "win+e",
-
-  "new email": "ctrl+n",
-  "reply": "ctrl+r",
-  "reply all": "ctrl+shift+r",
-  "send email": "alt+s",
-
-  "start slideshow": "f5",
-  "next slide": "right",
-  "previous slide": "left",
-
-  "edit cell": "f2"
+  "copy":              "ctrl+c",
+  "paste":             "ctrl+v",
+  "cut":               "ctrl+x",
+  "save":              "ctrl+s",
+  "save as":           "ctrl+shift+s",
+  "undo":              "ctrl+z",
+  "redo":              "ctrl+y",
+  "select all":        "ctrl+a",
+  "find":              "ctrl+f",
+  "replace":           "ctrl+h",
+  "new":               "ctrl+n",
+  "print":             "ctrl+p",
+  "bold":              "ctrl+b",
+  "italic":            "ctrl+i",
+  "underline":         "ctrl+u",
+  "new tab":           "ctrl+t",
+  "close tab":         "ctrl+w",
+  "next tab":          "ctrl+tab",
+  "previous tab":      "ctrl+shift+tab",
+  "refresh":           "f5",
+  "full screen":       "f11",
+  "task manager":      "ctrl+shift+escape",
+  "lock":              "win+l",
+  "show desktop":      "win+d",
+  "file explorer":     "win+e",
+  "screenshot":        "win+shift+s",
+  "alt tab":           "alt+tab",
+  "alt f4":            "alt+f4",
+  "escape":            "escape",
+  "enter":             "enter",
+  "delete":            "delete",
+  "page up":           "pageup",
+  "page down":         "pagedown"
 }
