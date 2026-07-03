@@ -1,14 +1,8 @@
-"""Text-to-speech with multiple backends:
-- pyttsx3: Offline, uses Windows SAPI voices (fast, low latency)
-- edge-tts: Online, uses Microsoft Edge voices (high quality, requires internet)
-
-Configure in config.py: TTS_BACKEND = "pyttsx3" or "edge-tts"
-"""
-import asyncio
+"""Thread-safe TTS with proper engine lifecycle.
+Engine is created and used in the same worker thread to avoid
+RuntimeError: run loop already started."""
 import threading
 import queue
-import tempfile
-import os
 
 import config
 
@@ -16,118 +10,108 @@ class TTSEngine:
     def __init__(self):
         self.backend = config.TTS_BACKEND.lower()
         self._queue = queue.Queue()
+        self._engine = None  # Lazy init in worker thread
         self._worker_thread = None
-        self._init_backend()
         self._start_worker()
     
-    def _init_backend(self):
-        if self.backend == "pyttsx3":
+    def _ensure_engine(self):
+        """Create pyttsx3 engine in the worker thread (thread-safe)."""
+        if self._engine is None and self.backend == "pyttsx3":
             import pyttsx3
-            self.engine = pyttsx3.init()
-            # Configure voice
-            voices = self.engine.getProperty('voices')
+            self._engine = pyttsx3.init()
+            voices = self._engine.getProperty('voices')
             if config.TTS_VOICE:
-                # Try to find voice by name
                 for voice in voices:
                     if config.TTS_VOICE.lower() in voice.name.lower():
-                        self.engine.setProperty('voice', voice.id)
+                        self._engine.setProperty('voice', voice.id)
                         break
-            self.engine.setProperty('rate', config.TTS_RATE)
-            self.engine.setProperty('volume', config.TTS_VOLUME)
-            
-        elif self.backend == "edge-tts":
-            # edge-tts is async, we'll handle it in the worker
-            self.voice = config.TTS_VOICE or "en-US-AriaNeural"
-            
-        else:
-            raise ValueError(f"Unknown TTS backend: {self.backend}")
+            self._engine.setProperty('rate', config.TTS_RATE)
+            self._engine.setProperty('volume', config.TTS_VOLUME)
     
     def _start_worker(self):
-        """Start background thread for TTS to avoid blocking."""
+        """Worker thread owns the pyttsx3 engine."""
         def worker():
             while True:
-                text = self._queue.get()
-                if text is None:  # Shutdown signal
+                item = self._queue.get()
+                if item is None:
                     break
-                self._speak(text)
+                text, blocking = item
+                self._ensure_engine()
+                if self.backend == "pyttsx3":
+                    self._engine.say(text)
+                    self._engine.runAndWait()
+                elif self.backend == "edge-tts":
+                    self._speak_edge(text)
         
         self._worker_thread = threading.Thread(target=worker, daemon=True)
         self._worker_thread.start()
     
-    def _speak(self, text):
-        """Actually speak the text."""
-        if self.backend == "pyttsx3":
-            self.engine.say(text)
-            self.engine.runAndWait()
-            
-        elif self.backend == "edge-tts":
-            self._speak_edge(text)
-    
     def _speak_edge(self, text):
-        """Use Edge TTS (async, requires internet)."""
+        """Edge TTS (requires internet)."""
+        import asyncio
         import edge_tts
+        import tempfile
+        import os
+        import subprocess
         
         async def _async_speak():
-            # Create temporary file for audio
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
                 temp_path = f.name
-            
             try:
-                communicate = edge_tts.Communicate(text, self.voice)
+                voice = config.TTS_VOICE or "en-US-AriaNeural"
+                communicate = edge_tts.Communicate(text, voice)
                 await communicate.save(temp_path)
-                
-                # Play the audio file
-                self._play_audio_file(temp_path)
+                subprocess.run(
+                    ["powershell", "-c",
+                     f'(New-Object Media.SoundPlayer "{temp_path}").PlaySync()'],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
             finally:
-                # Clean up
-                if os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except:
-                        pass
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
         
-        # Run async function in new event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(_async_speak())
         loop.close()
     
-    def _play_audio_file(self, path):
-        """Play audio file using Windows media player."""
-        import subprocess
-        # Use ffplay if available, otherwise Windows Media Player
-        try:
-            subprocess.run(
-                ["ffplay", "-nodisp", "-autoexit", path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            # Fallback to Windows Media Player
-            subprocess.run(
-                ["wmplayer", path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-    
-    def speak(self, text):
-        """Queue text to be spoken (non-blocking)."""
-        if text:
-            self._queue.put(text)
+    def speak(self, text, wait=False):
+        """Queue text to be spoken. If wait=True, block until done."""
+        if not text:
+            return
+        if wait:
+            # Synchronous: speak in current thread (only safe if not worker)
+            self._ensure_engine()
+            if self.backend == "pyttsx3":
+                self._engine.say(text)
+                self._engine.runAndWait()
+            else:
+                self._speak_edge(text)
+        else:
+            self._queue.put((text, False))
     
     def speak_now(self, text):
-        """Speak immediately (blocking)."""
-        if text:
-            self._speak(text)
+        """Speak immediately, blocking. Safe to call from any thread."""
+        # Use a separate engine for blocking calls to avoid conflicts with worker
+        if self.backend == "pyttsx3":
+            import pyttsx3
+            eng = pyttsx3.init()
+            eng.setProperty('rate', config.TTS_RATE)
+            eng.setProperty('volume', config.TTS_VOLUME)
+            eng.say(text)
+            eng.runAndWait()
+            del eng
+        else:
+            self._speak_edge(text)
     
     def stop(self):
-        """Stop the TTS worker."""
         self._queue.put(None)
         if self._worker_thread:
             self._worker_thread.join(timeout=1)
 
-# Global instance
+
 _tts = None
 
 def init():
@@ -136,17 +120,12 @@ def init():
         _tts = TTSEngine()
     return _tts
 
-def speak(text):
-    """Speak text using the configured backend."""
-    engine = init()
-    engine.speak(text)
+def speak(text, wait=False):
+    init().speak(text, wait=wait)
 
 def speak_now(text):
-    """Speak text immediately (blocking)."""
-    engine = init()
-    engine.speak_now(text)
+    init().speak_now(text)
 
 def stop():
-    """Stop the TTS engine."""
     if _tts:
         _tts.stop()
