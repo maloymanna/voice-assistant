@@ -11,7 +11,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PORCUPINE_DIR = os.path.join(BASE_DIR, "porcupine-1.9")
 BINDING_PATH = os.path.join(PORCUPINE_DIR, "binding", "python")
 
-# Inject the binding directory into sys.path
+# Inject the binding directory into sys.path so 'porcupine.py' can be imported
 if BINDING_PATH not in sys.path:
     sys.path.insert(0, BINDING_PATH)
 
@@ -49,11 +49,12 @@ def _listen_loop():
             return
     
     try:
-        # v1.9 API: requires ALL paths explicitly
+        # v1.9 API: requires exact parameter names and a 'sensitivities' list
         _porcupine = Porcupine(
             library_path=library_path,
-            model_file_path=model_path,
-            keyword_file_paths=[keyword_path]
+            model_path=model_path,
+            keyword_paths=[keyword_path],
+            sensitivities=[0.5]  # 0.5 is the default sensitivity (range 0.0 to 1.0)
         )
         print(f"[*] Porcupine v1.9 initialized successfully.")
         print(f"    Library: {library_path}")
