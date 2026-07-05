@@ -11,8 +11,7 @@ LISTEN_TIMEOUT_SEC = 6
 CONFIDENCE_THRESHOLD = 0.65
 MAX_RETRIES = 2
 
-# --- Wake Word (Porcupine v1.8.1) ---
-PORCUPINE_KEYWORD_PATH = os.path.join(BASE_DIR, "models", "porcupine", "computer_windows.ppn")
+# --- Wake Word ---
 WAKE_WORD_NAME = "Computer"
 
 # --- Text-to-Speech ---

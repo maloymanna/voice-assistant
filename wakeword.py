@@ -1,27 +1,66 @@
-"""Background wake word detection using Porcupine v1.8.1 (pip installed).
-Runs in a daemon thread. Sets a flag when the wake word is heard."""
+"""Background wake word detection using Porcupine v1.9 (Direct from GitHub Source).
+Uses the raw Python binding and explicit paths to .dll, .pv, and .ppn files."""
+import sys
+import os
+import platform
 import threading
 import sounddevice as sd
-import pvporcupine  # Simple import - no .binding needed
+
+# 1. Setup paths to the extracted GitHub source
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PORCUPINE_DIR = os.path.join(BASE_DIR, "porcupine-1.9")
+BINDING_PATH = os.path.join(PORCUPINE_DIR, "binding", "python")
+
+# Inject the binding directory into sys.path
+if BINDING_PATH not in sys.path:
+    sys.path.insert(0, BINDING_PATH)
+
+# Import the Porcupine class directly from porcupine.py
+from porcupine import Porcupine
+
 import config
 
 _wake_word_triggered = False
 _thread = None
 _porcupine = None
 
+
 def _listen_loop():
     global _wake_word_triggered, _porcupine
     
+    # 2. Build explicit paths to all required v1.9 files
+    # Detect architecture (amd64 vs x86)
+    arch = "amd64" if platform.machine().endswith("64") else "x86"
+    
+    library_path = os.path.join(
+        PORCUPINE_DIR, "lib", "windows", arch, "libpv_porcupine.dll"
+    )
+    model_path = os.path.join(
+        PORCUPINE_DIR, "lib", "common", "porcupine_params.pv"
+    )
+    keyword_path = os.path.join(
+        PORCUPINE_DIR, "resources", "keyword_files", "windows", "computer_windows.ppn"
+    )
+    
+    # Verify all files exist
+    for name, path in [("library", library_path), ("model", model_path), ("keyword", keyword_path)]:
+        if not os.path.exists(path):
+            print(f"[error] {name} not found at: {path}")
+            return
+    
     try:
-        # Porcupine v1.8.1 API - no access_key parameter
-        _porcupine = pvporcupine.create(
-            keyword_file_paths=[config.PORCUPINE_KEYWORD_PATH]
+        # v1.9 API: requires ALL paths explicitly
+        _porcupine = Porcupine(
+            library_path=library_path,
+            model_file_path=model_path,
+            keyword_file_paths=[keyword_path]
         )
-        print(f"[*] Porcupine initialized with keyword: {config.PORCUPINE_KEYWORD_PATH}")
+        print(f"[*] Porcupine v1.9 initialized successfully.")
+        print(f"    Library: {library_path}")
+        print(f"    Model:   {model_path}")
+        print(f"    Keyword: {keyword_path}")
     except Exception as e:
         print(f"[error] Failed to initialize Porcupine: {e}")
-        print(f"[error] Make sure pvporcupine==1.8.1 is installed")
-        print(f"[error] Run: python -m pip install --user pvporcupine==1.8.1 --no-deps")
         return
 
     frame_length = _porcupine.frame_length
@@ -35,7 +74,7 @@ def _listen_loop():
         ) as stream:
             while True:
                 audio_frame, _ = stream.read(frame_length)
-                # Porcupine v1 expects a list of integers
+                # v1.9 process() expects a list of integers
                 keyword_index = _porcupine.process(audio_frame.flatten().tolist())
                 
                 if keyword_index >= 0:
@@ -47,6 +86,7 @@ def _listen_loop():
         if _porcupine:
             _porcupine.delete()
 
+
 def start():
     """Start the wake word listener in a background thread."""
     global _thread
@@ -57,6 +97,7 @@ def start():
     _thread.start()
     print(f"[*] Wake word '{config.WAKE_WORD_NAME}' listening in background...")
 
+
 def check_and_reset():
     """Check if wake word was triggered, and reset the flag."""
     global _wake_word_triggered
@@ -65,6 +106,7 @@ def check_and_reset():
         return True
     return False
 
+
 def stop():
-    """Stop the thread (it's a daemon, so it dies with the main process)."""
+    """Stop the thread (daemon, dies with main process)."""
     pass
