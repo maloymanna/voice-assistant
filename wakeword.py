@@ -1,15 +1,8 @@
-"""Background wake word detection using Porcupine from GitHub source."""
-import sys
-import os
+"""Background wake word detection using Porcupine v1.8.1 (pip installed).
+Runs in a daemon thread. Sets a flag when the wake word is heard."""
 import threading
 import sounddevice as sd
-
-# Add Porcupine Python binding to path
-PORCUPINE_PYTHON_PATH = os.path.join(os.path.dirname(__file__), "porcupine-1.8.1", "binding", "python")
-if PORCUPINE_PYTHON_PATH not in sys.path:
-    sys.path.insert(0, PORCUPINE_PYTHON_PATH)
-
-import pvporcupine
+import pvporcupine  # Simple import - no .binding needed
 import config
 
 _wake_word_triggered = False
@@ -20,12 +13,15 @@ def _listen_loop():
     global _wake_word_triggered, _porcupine
     
     try:
+        # Porcupine v1.8.1 API - no access_key parameter
         _porcupine = pvporcupine.create(
             keyword_file_paths=[config.PORCUPINE_KEYWORD_PATH]
         )
-        print(f"[*] Porcupine initialized")
+        print(f"[*] Porcupine initialized with keyword: {config.PORCUPINE_KEYWORD_PATH}")
     except Exception as e:
         print(f"[error] Failed to initialize Porcupine: {e}")
+        print(f"[error] Make sure pvporcupine==1.8.1 is installed")
+        print(f"[error] Run: python -m pip install --user pvporcupine==1.8.1 --no-deps")
         return
 
     frame_length = _porcupine.frame_length
@@ -39,6 +35,7 @@ def _listen_loop():
         ) as stream:
             while True:
                 audio_frame, _ = stream.read(frame_length)
+                # Porcupine v1 expects a list of integers
                 keyword_index = _porcupine.process(audio_frame.flatten().tolist())
                 
                 if keyword_index >= 0:
@@ -51,15 +48,17 @@ def _listen_loop():
             _porcupine.delete()
 
 def start():
+    """Start the wake word listener in a background thread."""
     global _thread
     if _thread and _thread.is_alive():
         return
     
     _thread = threading.Thread(target=_listen_loop, daemon=True)
     _thread.start()
-    print(f"[*] Wake word '{config.WAKE_WORD_NAME}' listening...")
+    print(f"[*] Wake word '{config.WAKE_WORD_NAME}' listening in background...")
 
 def check_and_reset():
+    """Check if wake word was triggered, and reset the flag."""
     global _wake_word_triggered
     if _wake_word_triggered:
         _wake_word_triggered = False
@@ -67,4 +66,5 @@ def check_and_reset():
     return False
 
 def stop():
+    """Stop the thread (it's a daemon, so it dies with the main process)."""
     pass
